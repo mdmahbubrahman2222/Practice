@@ -1,0 +1,84 @@
+#include <stdio.h>
+#include <string.h>
+#define MAX_CANDIDATES 100
+#define TOP_CANDIDATES 4
+
+typedef struct {
+    char name[50];
+    int score;
+} Candidate;
+
+Candidate candidates[MAX_CANDIDATES];
+int candidate_count = 0;
+
+void display_candidates() {
+    printf("------------------------------------\n");
+    for (int i = 0; i < candidate_count; i++) {
+        printf("%d. %s: %d\n", i + 1, candidates[i].name, candidates[i].score);
+    }
+    printf("------------------------------------\n");
+}
+
+void sort_candidates() {
+    for (int i = 0; i < candidate_count - 1; i++) {
+        for (int j = i + 1; j < candidate_count; j++) {
+            if (candidates[i].score < candidates[j].score) {
+                Candidate temp = candidates[i];
+                candidates[i] = candidates[j];
+                candidates[j] = temp;
+            }
+        }
+    }
+}
+
+void input_candidates() {
+    while (1) {
+        printf("> Candidate Name (or 'done' to finish): ");
+        char name[50];
+        scanf("%s", name);
+        if (strcmp(name, "done") == 0) break;
+        printf("> Music Proficiency: ");
+        int score;
+        scanf("%d", &score);
+        strcpy(candidates[candidate_count].name, name);
+        candidates[candidate_count].score = score;
+        candidate_count++;
+    }
+}
+
+void final_submission() {
+    sort_candidates();
+    printf("=======================================\n");
+    printf("# Congratulations! Welcome to Milliways! #\n");
+    for (int i = 0; i < TOP_CANDIDATES && i < candidate_count; i++) {
+        printf("%d. %s\n", i + 1, candidates[i].name);
+    }
+    printf("=======================================\n");
+}
+
+int main() {
+    printf("####################################\n");
+    printf("#     Audition Evaluation Entry    #\n");
+    printf("####################################\n");
+    printf("> Judge Name: Youngsoo Kim\n");
+    printf("> Expertise: Music\n");
+    printf("++++++++++++++++++++++++++++++++++++\n");
+
+    input_candidates();
+
+    printf("Submission completed. Please review your input!\n");
+    display_candidates();
+
+    char choice;
+    printf("Would you like to submit? (Y/N): ");
+    scanf(" %c", &choice);
+
+    if (choice == 'Y' || choice == 'y') {
+        printf("***Final submission completed.***\n");
+        final_submission();
+    } else {
+        printf("Returning to input screen...\n");
+        main();
+    }
+    return 0;
+}
