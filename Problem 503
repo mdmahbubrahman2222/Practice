@@ -1,98 +1,248 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
+#include <time.h>
 
-#define MAX_NOTES 3
-
-typedef struct {
-    char note;
-    int octave;
-} Note;
+#define MAX_NAME_LEN 50
+#define MAX_GROUP_LEN 50
+#define MAX_MEMBERS 100
+#define MAX_ATTEMPTS 3
 
 typedef struct {
-    Note notes[MAX_NOTES];
-} Chord;
+    int tempo;
+    char rhythm[5];
+} TempoRhythm;
 
-int validateOctaveMatch(Chord *chord) {
-    int octave = chord->notes[0].octave;
-    for (int i = 1; i < MAX_NOTES; i++) {
-        if (chord->notes[i].octave != octave)
-            return 0;
-    }
-    return 1;
+typedef struct {
+    char traineeName[MAX_NAME_LEN];
+    char testDate[11];
+    int targetBeats;
+    double elapsedSeconds;
+} BeatPracticeRecord;
+
+typedef struct {
+    char groupName[MAX_GROUP_LEN];
+    char members[MAX_MEMBERS][MAX_NAME_LEN];
+    int memberCount;
+} TraineeGroup;
+
+static const TempoRhythm tempoRhythms[] = {
+    {60, "2/4"},
+    {60, "3/4"},
+    {60, "4/4"},
+    {60, "6/8"},
+    {80, "2/4"},
+    {80, "3/4"},
+    {80, "4/4"},
+    {80, "6/8"},
+    {120, "2/4"},
+    {120, "3/4"},
+    {120, "4/4"},
+    {120, "6/8"}
+};
+static const int tempoRhythmCount = sizeof(tempoRhythms) / sizeof(TempoRhythm);
+
+static int attemptsToday = 0;
+
+void getCurrentDateTime(char *buffer, int bufsize) {
+    time_t now = time(NULL);
+    struct tm *t = localtime(&now);
+    snprintf(buffer, bufsize, "%02d%02d%02d%02d%02d", 
+        t->tm_year % 100, t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min);
 }
 
-int validateUniqueNotes(Chord *chord) {
-    for (int i = 0; i < MAX_NOTES - 1; i++) {
-        for (int j = i + 1; j < MAX_NOTES; j++) {
-            if (toupper(chord->notes[i].note) == toupper(chord->notes[j].note))
-                return 0;
+int loadTraineesFromCSV(const char *filename, TraineeGroup *groups, int *groupCount) {
+    FILE *fp = fopen(filename, "r");
+    if (!fp) return 0;
+
+    char line[256];
+    *groupCount = 0;
+
+    while (fgets(line, sizeof(line), fp)) {
+        char *token = strtok(line, ",");
+        if (!token) continue;
+        char *groupName = token;
+
+        int grpIdx = -1;
+        for (int i = 0; i < *groupCount; i++) {
+            if (strcmp(groups[i].groupName, groupName) == 0) {
+                grpIdx = i;
+                break;
+            }
+        }
+        if (grpIdx == -1) {
+            grpIdx = *groupCount;
+            strncpy(groups[grpIdx].groupName, groupName, MAX_GROUP_LEN - 1);
+            groups[grpIdx].memberCount = 0;
+            (*groupCount)++;
+        }
+        token = strtok(NULL, ",\r\n");
+        if (token && groups[grpIdx].memberCount < MAX_MEMBERS) {
+            strncpy(groups[grpIdx].members[groups[grpIdx].memberCount], token, MAX_NAME_LEN - 1);
+            groups[grpIdx].memberCount++;
         }
     }
+
+    fclose(fp);
     return 1;
 }
 
-int pitchDistance(char n1, char n2) {
-    const char scale[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G'};
-    int i1 = -1, i2 = -1;
-    for (int i = 0; i < 7; i++) {
-        if (scale[i] == toupper(n1)) i1 = i;
-        if (scale[i] == toupper(n2)) i2 = i;
+int findMemberInGroup(const TraineeGroup *group, const char *name) {
+    for (int i = 0; i < group->memberCount; i++) {
+        if (strcmp(group->members[i], name) == 0)
+            return 1;
     }
-    if (i1 == -1 || i2 == -1) return -1;
-    return abs(i1 - i2);
+    return 0;
 }
 
-void checkHarmony(Chord *chord) {
-    int rt_3rd = pitchDistance(chord->notes[0].note, chord->notes[1].note);
-    int rt_5th = pitchDistance(chord->notes[0].note, chord->notes[2].note);
-    if (rt_3rd <= 2 && rt_5th >= 3)
-        printf("-> This chord is harmonious based on pitch intervals.\n");
+int inputTrainee(const TraineeGroup *groups, int groupCount, char *traineeName) {
+    char groupName[MAX_GROUP_LEN];
+    printf("Enter trainee group name: ");
+    if (scanf("%49s", groupName) != 1) return 0;
+
+    int grpIdx = -1;
+    for (int i = 0; i < groupCount; i++) {
+        if (strcmp(groups[i].groupName, groupName) == 0) {
+            grpIdx = i;
+            break;
+        }
+    }
+    if (grpIdx == -1) {
+        printf("Group not found.\n");
+        return 0;
+    }
+
+    printf("Members in %s:\n", groupName);
+    for (int i = 0; i < groups[grpIdx].memberCount; i++) {
+        printf("  %s\n", groups[grpIdx].members[i]);
+    }
+
+    printf("Enter trainee name: ");
+    if (scanf("%49s", traineeName) != 1) return 0;
+
+    if (!findMemberInGroup(&groups[grpIdx], traineeName)) {
+        printf("Trainee not found in group.\n");
+        return 0;
+    }
+
+    return 1;
+}
+
+void writeFile(const BeatPracticeRecord *record) {
+    FILE *fp = fopen("beat_test_result.txt", "a");
+    if (!fp) {
+        printf("Error opening file for writing.\n");
+        return;
+    }
+    fprintf(fp, "%s,%s,%d,%.2f\n",
+        record->traineeName,
+        record->testDate,
+        record->targetBeats,
+        record->elapsedSeconds);
+    fclose(fp);
+}
+
+void printResult(const BeatPracticeRecord *record) {
+    double expectedTime = 60.0;
+    double diff = record->elapsedSeconds - expectedTime;
+
+    printf("Test completed.\n");
+    printf("Elapsed time: %.2f seconds\n", record->elapsedSeconds);
+    if (diff < 0)
+        printf("You were %.2f seconds too fast.\n", -diff);
+    else if (diff > 0)
+        printf("You were %.2f seconds too slow.\n", diff);
     else
-        printf("-> This chord may not be harmonious.\n");
+        printf("Perfect timing!\n");
 }
 
-void printChord(Chord *chord) {
-    printf("Chord Notes:\n");
-    for (int i = 0; i < MAX_NOTES; i++) {
-        printf(" %c%d", toupper(chord->notes[i].note), chord->notes[i].octave);
-        if (i < MAX_NOTES - 1) printf(" -");
+void testBeat(const char *traineeName) {
+    if (attemptsToday >= MAX_ATTEMPTS) {
+        printf("You have reached the maximum number of attempts (3) for today.\n");
+        return;
     }
-    printf("\n");
+
+    int idx = rand() % tempoRhythmCount;
+    TempoRhythm tr = tempoRhythms[idx];
+    int beatsPerMeasure = 0;
+    if (strcmp(tr.rhythm, "2/4") == 0) beatsPerMeasure = 2;
+    else if (strcmp(tr.rhythm, "3/4") == 0) beatsPerMeasure = 3;
+    else if (strcmp(tr.rhythm, "4/4") == 0) beatsPerMeasure = 4;
+    else if (strcmp(tr.rhythm, "6/8") == 0) beatsPerMeasure = 6;
+
+    int targetBeats = tr.tempo * 60 / 60;
+
+    printf("Tempo: %d BPM\n", tr.tempo);
+    printf("Rhythm: %s\n", tr.rhythm);
+    printf("Target beats to count: %d\n", targetBeats);
+    printf("Press Enter to start the test...");
+    while (getchar() != '\n');
+    getchar();
+
+    printf("Start counting beats silently for 60 seconds.\n");
+    printf("Press Enter when you finish counting the target beats.\n");
+    clock_t start = clock();
+    while (getchar() != '\n');
+    clock_t end = clock();
+
+    double elapsedSeconds = (double)(end - start) / CLOCKS_PER_SEC;
+
+    BeatPracticeRecord record;
+    strncpy(record.traineeName, traineeName, MAX_NAME_LEN - 1);
+    getCurrentDateTime(record.testDate, sizeof(record.testDate));
+    record.targetBeats = targetBeats;
+    record.elapsedSeconds = elapsedSeconds;
+
+    writeFile(&record);
+    printResult(&record);
+
+    attemptsToday++;
 }
 
-void learnMusicTheory() {
-    Chord chord;
-    printf("\n[Music Theory] Enter 3 notes to form a chord (Note A-G and Octave 1-8)\n");
-    for (int i = 0; i < MAX_NOTES; i++) {
-        char n;
-        int o;
-        printf("Note %d - Enter note (A-G): ", i + 1);
-        scanf(" %c", &n);
-        if (toupper(n) < 'A' || toupper(n) > 'G') {
-            printf("Invalid note. Must be A-G.\n");
+void improveSenseOfBeat() {
+    static TraineeGroup groups[MAX_MEMBERS];
+    static int groupCount = 0;
+    static int groupsLoaded = 0;
+
+    if (!groupsLoaded) {
+        if (!loadTraineesFromCSV("newtrainees.csv", groups, &groupCount)) {
+            printf("Failed to load trainee groups.\n");
             return;
         }
-        printf("Note %d - Enter octave (1-8): ", i + 1);
-        scanf("%d", &o);
-        if (o < 1 || o > 8) {
-            printf("Invalid octave. Must be between 1 and 8.\n");
-            return;
+        groupsLoaded = 1;
+    }
+
+    char traineeName[MAX_NAME_LEN];
+    if (!inputTrainee(groups, groupCount, traineeName)) {
+        printf("Invalid trainee input. Exiting.\n");
+        return;
+    }
+
+    testBeat(traineeName);
+}
+
+int main() {
+    srand((unsigned int)time(NULL));
+    int choice;
+    do {
+        printf("=== Magrathea Training ===\n");
+        printf("1. Improve Sense of Beat (Team Dance)\n");
+        printf("0. Exit\n");
+        printf("Select menu: ");
+        scanf("%d", &choice);
+        while (getchar() != '\n');
+
+        switch(choice) {
+            case 1:
+                improveSenseOfBeat();
+                break;
+            case 0:
+                printf("Exiting.\n");
+                break;
+            default:
+                printf("Invalid option.\n");
         }
-        chord.notes[i].note = toupper(n);
-        chord.notes[i].octave = o;
-    }
-    printf("\nValidating chord...\n");
-    printChord(&chord);
-    if (!validateOctaveMatch(&chord)) {
-        printf("-> Invalid chord: Notes are not in the same octave.\n");
-        return;
-    }
-    if (!validateUniqueNotes(&chord)) {
-        printf("-> Invalid chord: Duplicate notes found.\n");
-        return;
-    }
-    printf("-> Chord is valid.\n");
-    checkHarmony(&chord);
+    } while (choice != 0);
+
+    return 0;
 }
