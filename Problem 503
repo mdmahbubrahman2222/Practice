@@ -1,0 +1,98 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+#define MAX_NOTES 3
+
+typedef struct {
+    char note;
+    int octave;
+} Note;
+
+typedef struct {
+    Note notes[MAX_NOTES];
+} Chord;
+
+int validateOctaveMatch(Chord *chord) {
+    int octave = chord->notes[0].octave;
+    for (int i = 1; i < MAX_NOTES; i++) {
+        if (chord->notes[i].octave != octave)
+            return 0;
+    }
+    return 1;
+}
+
+int validateUniqueNotes(Chord *chord) {
+    for (int i = 0; i < MAX_NOTES - 1; i++) {
+        for (int j = i + 1; j < MAX_NOTES; j++) {
+            if (toupper(chord->notes[i].note) == toupper(chord->notes[j].note))
+                return 0;
+        }
+    }
+    return 1;
+}
+
+int pitchDistance(char n1, char n2) {
+    const char scale[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G'};
+    int i1 = -1, i2 = -1;
+    for (int i = 0; i < 7; i++) {
+        if (scale[i] == toupper(n1)) i1 = i;
+        if (scale[i] == toupper(n2)) i2 = i;
+    }
+    if (i1 == -1 || i2 == -1) return -1;
+    return abs(i1 - i2);
+}
+
+void checkHarmony(Chord *chord) {
+    int rt_3rd = pitchDistance(chord->notes[0].note, chord->notes[1].note);
+    int rt_5th = pitchDistance(chord->notes[0].note, chord->notes[2].note);
+    if (rt_3rd <= 2 && rt_5th >= 3)
+        printf("-> This chord is harmonious based on pitch intervals.\n");
+    else
+        printf("-> This chord may not be harmonious.\n");
+}
+
+void printChord(Chord *chord) {
+    printf("Chord Notes:\n");
+    for (int i = 0; i < MAX_NOTES; i++) {
+        printf(" %c%d", toupper(chord->notes[i].note), chord->notes[i].octave);
+        if (i < MAX_NOTES - 1) printf(" -");
+    }
+    printf("\n");
+}
+
+void learnMusicTheory() {
+    Chord chord;
+    printf("\n[Music Theory] Enter 3 notes to form a chord (Note A-G and Octave 1-8)\n");
+    for (int i = 0; i < MAX_NOTES; i++) {
+        char n;
+        int o;
+        printf("Note %d - Enter note (A-G): ", i + 1);
+        scanf(" %c", &n);
+        if (toupper(n) < 'A' || toupper(n) > 'G') {
+            printf("Invalid note. Must be A-G.\n");
+            return;
+        }
+        printf("Note %d - Enter octave (1-8): ", i + 1);
+        scanf("%d", &o);
+        if (o < 1 || o > 8) {
+            printf("Invalid octave. Must be between 1 and 8.\n");
+            return;
+        }
+        chord.notes[i].note = toupper(n);
+        chord.notes[i].octave = o;
+    }
+    printf("\nValidating chord...\n");
+    printChord(&chord);
+    if (!validateOctaveMatch(&chord)) {
+        printf("-> Invalid chord: Notes are not in the same octave.\n");
+        return;
+    }
+    if (!validateUniqueNotes(&chord)) {
+        printf("-> Invalid chord: Duplicate notes found.\n");
+        return;
+    }
+    printf("-> Chord is valid.\n");
+    checkHarmony(&chord);
+}
